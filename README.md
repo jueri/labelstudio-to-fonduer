@@ -3,7 +3,7 @@
 
 
 ### Todos:
-- packet bauen
-- offset mit berücksichtigen
-- API erstellen
-- auf großem Datensatz testen
+- [x] packet bauen
+- [ ] offset mit berücksichtigen
+- [x] API erstellen
+- [ ] auf großem Datensatz testen

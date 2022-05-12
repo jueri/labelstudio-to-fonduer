@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Set, Any
 
 import fonduer  # type: ignore
 import sqlalchemy
@@ -13,7 +13,9 @@ class Export:
         self.session = session
         self.path = path
         self.spots, self.relations, self.id_label = self.parse(self.path, self.session)
-        self.spots_table = self.tabulate()
+        self.spots_table = self._tabulate()
+        self.labels = self._get_labels()
+        self.entity_types = set(self.labels.keys())
 
     def _get_filename(self, label_studio_str: str) -> str:
         """Parse the original filename from the filename rovided by labels studio by stripping the ID and ending.
@@ -39,7 +41,7 @@ class Export:
         Returns:
             etree._ElementTree: Tree object for further use.
         """
-        soup = BeautifulSoup(html_string)
+        soup = BeautifulSoup(html_string, features="lxml")
         dom = etree.HTML(str(soup))
         root = dom.getroottree()
         return root
@@ -58,27 +60,50 @@ class Export:
         res = dom.xpath("/" + rel_xpath)[0]
         return dom.getpath(res.getparent())
 
-    def tabulate(self) -> List[Tuple[str]]:
+    def _tabulate(self) -> List[Any]:
+        """Generate a tabulated list of tuples of the relations. Each tuple is a relation consisting of
+        the fields: fonduer_doc_id, text and fd_sentence_id for the first entity and fonduer_doc_id and
+        text, fd_sentence_id for the second entity.
+
+        Returns:
+            List[Tuple[str]]: Tabulated relations.
+        """
         tabulated = []
         for relation in self.relations:
-            entety_1 = self.export.get(relation[0])
-            entety_2 = self.export.get(relation[1])
+            entety_1 = self.spots.get(relation[0])
+            entety_2 = self.spots.get(relation[1])
             assert entety_1["fonduer_doc_id"] == entety_2["fonduer_doc_id"]
             tabulated.append(
                 (
                     entety_1["fonduer_doc_id"],
                     entety_1["text"],
                     entety_1["fd_sentence_id"],
+                    entety_1["ls_spot_offsets"][0],
+                    entety_1["ls_spot_offsets"][1],
                     entety_2["fonduer_doc_id"],
                     entety_2["text"],
                     entety_2["fd_sentence_id"],
+                    entety_2["ls_spot_offsets"][0],
+                    entety_2["ls_spot_offsets"][1],
                 )
             )
         return tabulated
 
-    def parse(
-        self, export_path: str, session: sqlalchemy.orm.session.Session
-    ) -> Tuple[Dict[str, str], List[str]]:
+    def _get_labels(self) -> Dict[str, Set[str]]:
+        """Extract the labels of the entities and return a dictionary with a set of labels per entity type.
+
+        Returns:
+            Dict[str, Set[str]]: Dict with all entity types and a set of the according labels.
+        """
+
+        entity_labels: Dict[str, Set[str]] = {}
+        for spot in self.spots:
+            if not entity_labels.get(self.spots[spot]["label"]):
+                entity_labels[self.spots[spot]["label"]] = set()
+            entity_labels[self.spots[spot]["label"]].add(self.spots[spot]["text"])
+        return entity_labels
+
+    def parse(self, export_path: str, session: sqlalchemy.orm.session.Session) -> Any:
         """Parse a label studio export path into spots, relations and ids. After initially parsing the
         json file, the Fonfuer document ID is retrieved based on the filename. Further, the sentence IDs
         of all spots are retrieved by the XPATH which is converted from the relative XPATH provided by
@@ -139,6 +164,10 @@ class Export:
                             "fd_sentence_id": str(fd_sentence_id[0]),
                             "filename": filename,
                             "fonduer_doc_id": fonduer_doc_id,
+                            "ls_spot_offsets": (
+                                str(entety["value"]["startOffset"]),
+                                str(entety["value"]["endOffset"]),
+                            ),
                         }
                     else:
                         relations.append(
@@ -146,7 +175,8 @@ class Export:
                         )
         return spots, relations, id_label
 
-    def is_gold(self, cand: fonduer.candidates.models.Candidate) -> int:
+    # def is_gold(self, cand: fonduer.candidates.models.Candidate) -> int:
+    def is_gold(self, cand) -> int:
         """Check if a provided candidate is gold labeld entety.
 
         Args:
@@ -159,11 +189,14 @@ class Export:
             str(cand[1].document_id),
             str(cand[1].context.get_span()),
             str(cand[1].context.sentence.id),
+            str(cand[1].context.char_start),
+            str(cand[1].context.char_end + 1),
             str(cand[0].document_id),
             str(cand[0].context.get_span()),
             str(cand[0].context.sentence.id),
+            str(cand[0].context.char_start),
+            str(cand[0].context.char_end + 1),
         )
         if canddidate_tuple in self.spots_table:
             return 1
-        else:
-            return 0
+        return 0
