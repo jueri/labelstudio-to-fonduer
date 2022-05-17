@@ -1,6 +1,6 @@
 # labelstudio-to-fonduer
 
-This small module connects Label Studio with Fondue by creating a fonduer labeling function for gold labels from a Label Studio export.
+This small module connects label studio with fonduer by creating a fonduer labeling function for gold labels from a label studio export.
 
 Gold labeled candidates are identified by matching:
 `document id` (identified by filename)
@@ -15,7 +15,7 @@ pip install git+https://github.com/jueri/labelstudio-to-fonduer.git#egg=labelstu
 ```
 
 ## Usage:
-The example notebook provides a full fonduer pipeline and shows how the module can be used to import the labels from the example Label Studio export.
+The example notebook provides a full fonduer pipeline and shows how the module can be used to import the labels from the example label studio export.
 
 Most important, an export can be parsed in conjunction with the label studio session
 
